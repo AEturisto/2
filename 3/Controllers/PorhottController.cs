@@ -13,15 +13,34 @@ namespace _3.Controllers
         public string SortMethod { get; set; }
     }
 
+   
+
     [Route("api/[controller]")]
     [ApiController]
     public class PorhottController : ControllerBase
     {
+        private readonly IConfiguration _config;
+        public PorhottController(IConfiguration config)
+        {
+            _config = config;
+        }
+
         [HttpPost(Name = "ChangeString")]
         public async Task<IActionResult> ChangeStringAsync([FromForm] FormModel model)
         {
             Dictionary<string,object> answer = new Dictionary<string,object>();
             var restrictedChars = CheckSymbols(model.UserInput);
+            var dwa = _config.GetSection("Settings:BlackList").GetChildren();
+            List<string> blackList = new List<string>();
+            foreach (var item in dwa)
+            {
+                if (model.UserInput == item.Value)
+                {
+                    answer.Add("Forbidden word", item.Value);
+                    return BadRequest(JsonSerializer.Serialize(answer));
+                }
+            }
+
             if (restrictedChars.Count > 0)
             {
                 answer.Add("Forbidden characters", string.Concat(restrictedChars));
@@ -73,7 +92,7 @@ namespace _3.Controllers
                     answer.Add("Sorted String", TreeSort(model.UserInput));
                 }
 
-                answer.Add("Random string", await WriteStrWithoutOneSymbol(model.UserInput));
+                answer.Add("Random string", await WriteStrWithoutOneSymbol(model.UserInput, _config.GetValue<string>("RandomApi")));
             }
 
             return Ok(JsonSerializer.Serialize(answer));
@@ -145,13 +164,13 @@ namespace _3.Controllers
             return repeatingChars;
         }
 
-        public async static Task<string> WriteStrWithoutOneSymbol(string str)
+        public async static Task<string> WriteStrWithoutOneSymbol(string str, string url)
         {
             int randNumber;
             try
             {
                 client.DefaultRequestHeaders.Add("User-agent", "Mozilla/5.0 (Windows NT 10.0; WOW64; rv:44.0) Gecko/20100101 Firefox/44.0");
-                HttpResponseMessage response = await client.GetAsync("https://www.random.org/integers/?num=1&min=0&max=" + (str.Length - 1) + "&col=1&base=10&format=plain&rnd=new");
+                HttpResponseMessage response = await client.GetAsync(url+"/integers/?num=1&min=0&max=" + (str.Length - 1) + "&col=1&base=10&format=plain&rnd=new");
                 randNumber = Int32.Parse(await response.Content.ReadAsStringAsync());
             }
             catch (HttpRequestException e)
