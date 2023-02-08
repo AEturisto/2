@@ -13,21 +13,30 @@ namespace _3.Controllers
         public string SortMethod { get; set; }
     }
 
-   
-
     [Route("api/[controller]")]
     [ApiController]
     public class PorhottController : ControllerBase
     {
+        string govno = "";
+
+
         private readonly IConfiguration _config;
         public PorhottController(IConfiguration config)
         {
             _config = config;
         }
 
+        static volatile public int requestsInProccess;
+
         [HttpPost(Name = "ChangeString")]
         public async Task<IActionResult> ChangeStringAsync([FromForm] FormModel model)
         {
+            requestsInProccess += 1;
+            if (requestsInProccess > Int32.Parse(_config.GetValue<string>("Settings:ParallelLimit")))
+            {
+                return StatusCode(503,"Too many requests for server!");
+            }
+            Console.WriteLine(requestsInProccess);
             Dictionary<string,object> answer = new Dictionary<string,object>();
             var restrictedChars = CheckSymbols(model.UserInput);
             var dwa = _config.GetSection("Settings:BlackList").GetChildren();
@@ -95,6 +104,7 @@ namespace _3.Controllers
                 answer.Add("Random string", await WriteStrWithoutOneSymbol(model.UserInput, _config.GetValue<string>("RandomApi")));
             }
 
+            requestsInProccess--;
             return Ok(JsonSerializer.Serialize(answer));
         }
 
